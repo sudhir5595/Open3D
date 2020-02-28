@@ -32,14 +32,17 @@
 #include <imgui.h>
 
 #include <cmath>
-#include <string>
+#include <sstream>
 
 using namespace open3d::gui::util;
 
 namespace open3d {
 namespace gui {
 
+static int gNextCheckboxId = 1;
+
 struct Checkbox::Impl {
+    std::string id;
     std::string name;
     bool isChecked = false;
     std::function<void(bool)> onChecked;
@@ -47,6 +50,9 @@ struct Checkbox::Impl {
 
 Checkbox::Checkbox(const char* name) : impl_(new Checkbox::Impl()) {
     impl_->name = name;
+    std::stringstream s;
+    s << "##checkbox_" << gNextCheckboxId++;
+    impl_->id = s.str();
 }
 
 Checkbox::~Checkbox() {}
@@ -103,7 +109,7 @@ Widget::DrawResult Checkbox::Draw(const DrawContext& context) {
 
     DrawImGuiPushEnabledState();
     ImGui::PushItemWidth(GetFrame().width);
-    if (ImGui::Checkbox(impl_->name.c_str(), &impl_->isChecked)) {
+    if (ImGui::Checkbox((impl_->name + impl_->id).c_str(), &impl_->isChecked)) {
         if (impl_->onChecked) {
             impl_->onChecked(impl_->isChecked);
         }
