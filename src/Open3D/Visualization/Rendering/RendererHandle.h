@@ -80,6 +80,10 @@ struct REHandle_abstract {
         return id == other.id && type == other.type;
     }
 
+    bool operator!=(const REHandle_abstract& other) const {
+        return !this->operator==(other);
+    }
+
     bool operator<(const REHandle_abstract& other) const {
         return Hash() < other.Hash();
     }

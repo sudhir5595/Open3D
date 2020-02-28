@@ -376,6 +376,17 @@ LightHandle FilamentScene::AddLight(const LightDescription& descr) {
     return handle;
 }
 
+float FilamentScene::GetLightIntensity(const LightHandle& id) {
+    const auto found = entities_.find(id);
+    if (found != entities_.end()) {
+        auto& lightManager = engine_.getLightManager();
+        filament::LightManager::Instance inst =
+                lightManager.getInstance(found->second.info.self);
+        return lightManager.getIntensity(inst);
+    }
+    return 0.0f;
+}
+
 void FilamentScene::SetLightIntensity(const LightHandle& id,
                                       const float intensity) {
     const auto found = entities_.find(id);

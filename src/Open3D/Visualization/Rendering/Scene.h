@@ -79,8 +79,9 @@ public:
     virtual void RemoveGeometry(const GeometryHandle& geometryId) = 0;
 
     virtual LightHandle AddLight(const LightDescription& descr) = 0;
-    // TODO: If possible, add getters
+    virtual float GetLightIntensity(const LightHandle& id) = 0;
     virtual void SetLightIntensity(const LightHandle& id, float intensity) = 0;
+    // TODO: If possible, add getters
     virtual void SetLightColor(const LightHandle& id,
                                const Eigen::Vector3f& color) = 0;
     virtual void SetLightDirection(const LightHandle& id,

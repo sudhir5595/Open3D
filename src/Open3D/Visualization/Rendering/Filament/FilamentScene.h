@@ -83,6 +83,7 @@ public:
     void RemoveGeometry(const GeometryHandle& geometryId) override;
 
     LightHandle AddLight(const LightDescription& descr) override;
+    float GetLightIntensity(const LightHandle& id) override;
     void SetLightIntensity(const LightHandle& id, float intensity) override;
     void SetLightColor(const LightHandle& id,
                        const Eigen::Vector3f& color) override;

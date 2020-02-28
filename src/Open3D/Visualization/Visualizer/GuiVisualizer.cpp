@@ -49,6 +49,8 @@
 #include "Open3D/Visualization/Rendering/RendererStructs.h"
 #include "Open3D/Visualization/Rendering/Scene.h"
 
+#include <array>
+
 #define LOAD_IN_NEW_WINDOW 0
 
 namespace open3d {
@@ -194,6 +196,10 @@ public:
 
 }  // namespace
 
+static const float DEFAULT_SUN_INTENSITY = 100000.0f;
+static const float DEFAULT_AMBIENT_INTENSITY = 50000.0f;
+static const float DEFAULT_POINT_INTENSITY = 50000.0f;
+
 enum MenuId {
     FILE_OPEN,
     FILE_EXPORT_RGB,
@@ -207,16 +213,44 @@ enum MenuId {
     HELP_CONTACT
 };
 
+struct LightSettings {
+    visualization::LightHandle hLight = visualization::LightHandle::kBad;
+    Eigen::Vector3f position;
+
+    std::shared_ptr<gui::Checkbox> wgtEnabled; // may be nullptr
+
+    std::shared_ptr<gui::Slider> wgtIntensity;
+    std::shared_ptr<gui::Button> wgtDirMinusX;
+    std::shared_ptr<gui::Button> wgtDirPlusX;
+    std::shared_ptr<gui::Button> wgtDirMinusY;
+    std::shared_ptr<gui::Button> wgtDirPlusY;
+    std::shared_ptr<gui::Button> wgtDirMinusZ;
+    std::shared_ptr<gui::Button> wgtDirPlusZ;
+    std::shared_ptr<gui::ColorEdit> wgtColor;
+
+    std::shared_ptr<gui::VGrid> MakeLightUI(const gui::Theme& theme,
+                                            Scene *scene);
+    void SetEnabled(bool isEnabled) {
+        this->wgtIntensity->SetEnabled(isEnabled);
+        this->wgtDirMinusX->SetEnabled(isEnabled);
+        this->wgtDirPlusX->SetEnabled(isEnabled);
+        this->wgtDirMinusY->SetEnabled(isEnabled);
+        this->wgtDirPlusY->SetEnabled(isEnabled);
+        this->wgtDirMinusZ->SetEnabled(isEnabled);
+        this->wgtDirPlusZ->SetEnabled(isEnabled);
+        this->wgtColor->SetEnabled(isEnabled);
+    }
+};
+
 struct GuiVisualizer::Impl {
     std::vector<visualization::GeometryHandle> geometryHandles;
 
     std::shared_ptr<gui::SceneWidget> scene;
     std::shared_ptr<gui::Horiz> drawTime;
 
-    struct LightSettings {
+    struct SceneSettings {
         visualization::IndirectLightHandle hIbl;
         visualization::SkyboxHandle hSky;
-        visualization::LightHandle hDirectionalLight;
 
         std::shared_ptr<gui::Widget> wgtBase;
         std::shared_ptr<gui::Button> wgtLoadAmbient;
@@ -225,14 +259,8 @@ struct GuiVisualizer::Impl {
         std::shared_ptr<gui::Checkbox> wgtSkyEnabled;
         std::shared_ptr<gui::Checkbox> wgtDirectionalEnabled;
         std::shared_ptr<gui::Slider> wgtAmbientIntensity;
-        std::shared_ptr<gui::Slider> wgtSunIntensity;
-        std::shared_ptr<gui::Button> wgtSunDirMinusX;
-        std::shared_ptr<gui::Button> wgtSunDirPlusX;
-        std::shared_ptr<gui::Button> wgtSunDirMinusY;
-        std::shared_ptr<gui::Button> wgtSunDirPlusY;
-        std::shared_ptr<gui::Button> wgtSunDirMinusZ;
-        std::shared_ptr<gui::Button> wgtSunDirPlusZ;
-        std::shared_ptr<gui::ColorEdit> wgtSunColor;
+        LightSettings sun;
+        std::array<LightSettings, 6> spotlights;
     } lightSettings;
 };
 
@@ -286,28 +314,39 @@ GuiVisualizer::GuiVisualizer(
     impl_->scene = scene;
     scene->SetBackgroundColor(gui::Color(1.0, 1.0, 1.0));
 
-    // Create light
+    // Create sun
     visualization::LightDescription lightDescription;
-    lightDescription.intensity = 100000;
-    lightDescription.direction = {-0.707, -.707, 0.0};
+    lightDescription.intensity = DEFAULT_SUN_INTENSITY;
+    lightDescription.direction = {0.0, 0.0, -1.0};
     lightDescription.customAttributes["custom_type"] = "SUN";
-
-    impl_->lightSettings.hDirectionalLight =
+    impl_->lightSettings.sun.hLight =
             scene->GetScene()->AddLight(lightDescription);
+    impl_->lightSettings.sun.position = lightDescription.direction;
 
+    // Create ambient light (IBL)
     auto &lightSettings = impl_->lightSettings;
     std::string rsrcPath = app.GetResourcePath();
     auto iblPath = rsrcPath + "/default_ibl.ktx";
     lightSettings.hIbl =
             GetRenderer().AddIndirectLight(ResourceLoadRequest(iblPath.data()));
     scene->GetScene()->SetIndirectLight(lightSettings.hIbl);
-    const auto kAmbientIntensity = 50000;
+    const auto kAmbientIntensity = DEFAULT_AMBIENT_INTENSITY;
     scene->GetScene()->SetIndirectLightIntensity(kAmbientIntensity);
 
     auto skyPath = rsrcPath + "/default_sky.ktx";
     lightSettings.hSky =
             GetRenderer().AddSkybox(ResourceLoadRequest(skyPath.data()));
 
+    // Config spotlights
+    const float infinity = 500.0f;
+    impl_->lightSettings.spotlights[0].position = {-infinity, 0.0f, 0.0f};
+    impl_->lightSettings.spotlights[1].position = {infinity, 0.0f, 0.0f};
+    impl_->lightSettings.spotlights[2].position = {0.0f, -infinity, 0.0f};
+    impl_->lightSettings.spotlights[3].position = {0.0f, infinity, 0.0f};
+    impl_->lightSettings.spotlights[4].position = {0.0f, 0.0f, -infinity};
+    impl_->lightSettings.spotlights[5].position = {0.0f, 0.0f, infinity};
+
+    // Add the geometry
     SetGeometry(geometries);  // also updates the camera
 
     // Setup UI
@@ -413,7 +452,7 @@ GuiVisualizer::GuiVisualizer(
     lightSettings.wgtDirectionalEnabled->SetOnChecked(
             [this, renderScene](bool checked) {
                 renderScene->SetEntityEnabled(
-                        impl_->lightSettings.hDirectionalLight, checked);
+                        impl_->lightSettings.sun.hLight, checked);
             });
     checkboxes->AddChild(lightSettings.wgtDirectionalEnabled);
     lightSettings.wgtBase->AddChild(checkboxes);
@@ -437,84 +476,154 @@ GuiVisualizer::GuiVisualizer(
     lightSettings.wgtBase->AddChild(gui::Horiz::MakeFixed(separationHeight));
 
     // ... directional light (sun)
-    lightSettings.wgtSunIntensity = MakeSlider(gui::Slider::INT, 0.0, 500000.0,
-                                               lightDescription.intensity);
-    lightSettings.wgtSunIntensity->OnValueChanged =
-            [this, renderScene](double newValue) {
-                renderScene->SetLightIntensity(
-                        impl_->lightSettings.hDirectionalLight, newValue);
-            };
-
-    lightSettings.wgtSunDirMinusX = std::make_shared<SmallButton>("-X");
-    lightSettings.wgtSunDirMinusX->SetOnClicked([this, renderScene]() {
-        renderScene->SetLightDirection(impl_->lightSettings.hDirectionalLight,
-                                       {1.0f, 0.0f, 0.0f});
-    });
-    lightSettings.wgtSunDirPlusX = std::make_shared<SmallButton>("+X");
-    lightSettings.wgtSunDirPlusX->SetOnClicked([this, renderScene]() {
-        renderScene->SetLightDirection(impl_->lightSettings.hDirectionalLight,
-                                       {-1.0f, 0.0f, 0.0f});
-    });
-    lightSettings.wgtSunDirMinusY = std::make_shared<SmallButton>("-Y");
-    lightSettings.wgtSunDirMinusY->SetOnClicked([this, renderScene]() {
-        renderScene->SetLightDirection(impl_->lightSettings.hDirectionalLight,
-                                       {0.0f, 1.0f, 0.0f});
-    });
-    lightSettings.wgtSunDirPlusY = std::make_shared<SmallButton>("+Y");
-    lightSettings.wgtSunDirPlusY->SetOnClicked([this, renderScene]() {
-        renderScene->SetLightDirection(impl_->lightSettings.hDirectionalLight,
-                                       {0.0f, -1.0f, 0.0f});
-    });
-    lightSettings.wgtSunDirMinusZ = std::make_shared<SmallButton>("-Z");
-    lightSettings.wgtSunDirMinusZ->SetOnClicked([this, renderScene]() {
-        renderScene->SetLightDirection(impl_->lightSettings.hDirectionalLight,
-                                       {0.0f, 0.0f, 1.0f});
-    });
-    lightSettings.wgtSunDirPlusZ = std::make_shared<SmallButton>("+Z");
-    lightSettings.wgtSunDirPlusZ->SetOnClicked([this, renderScene]() {
-        renderScene->SetLightDirection(impl_->lightSettings.hDirectionalLight,
-                                       {0.0f, 0.0f, -1.0f});
-    });
-    auto sunDirLayout = std::make_shared<gui::Horiz>(gridSpacing);
-    sunDirLayout->AddChild(lightSettings.wgtSunDirMinusX);
-    sunDirLayout->AddChild(gui::Horiz::MakeStretch());
-    sunDirLayout->AddChild(lightSettings.wgtSunDirPlusX);
-    sunDirLayout->AddChild(gui::Horiz::MakeStretch());
-    sunDirLayout->AddChild(lightSettings.wgtSunDirMinusY);
-    sunDirLayout->AddChild(gui::Horiz::MakeStretch());
-    sunDirLayout->AddChild(lightSettings.wgtSunDirPlusY);
-    sunDirLayout->AddChild(gui::Horiz::MakeStretch());
-    sunDirLayout->AddChild(lightSettings.wgtSunDirMinusZ);
-    sunDirLayout->AddChild(gui::Horiz::MakeStretch());
-    sunDirLayout->AddChild(lightSettings.wgtSunDirPlusZ);
-
-    lightSettings.wgtSunColor = std::make_shared<gui::ColorEdit>();
-    lightSettings.wgtSunColor->SetValue({1, 1, 1});
-    lightSettings.wgtSunColor->OnValueChanged =
-            [this, renderScene](const gui::Color &newColor) {
-                renderScene->SetLightColor(
-                        impl_->lightSettings.hDirectionalLight,
-                        {newColor.GetRed(), newColor.GetGreen(),
-                         newColor.GetBlue()});
-            };
-
-    auto sunLayout = std::make_shared<gui::VGrid>(2, gridSpacing);
-    sunLayout->AddChild(std::make_shared<gui::Label>("Intensity"));
-    sunLayout->AddChild(lightSettings.wgtSunIntensity);
-    sunLayout->AddChild(std::make_shared<gui::Label>("Position"));
-    sunLayout->AddChild(sunDirLayout);
-    sunLayout->AddChild(std::make_shared<gui::Label>("Color"));
-    sunLayout->AddChild(lightSettings.wgtSunColor);
-
     lightSettings.wgtBase->AddChild(
             std::make_shared<gui::Label>("> Sun (Directional light)"));
-    lightSettings.wgtBase->AddChild(sunLayout);
+    lightSettings.wgtBase->AddChild(lightSettings.sun.MakeLightUI(
+                                                        theme, renderScene));
+
+    // ... spotlights
+    lightSettings.wgtBase->AddChild(gui::Horiz::MakeFixed(separationHeight));
+    lightSettings.wgtBase->AddChild(
+            std::make_shared<gui::Label>("> Spotlight -X"));
+    lightSettings.wgtBase->AddChild(lightSettings.spotlights[0].MakeLightUI(
+                                                        theme, renderScene));
+    lightSettings.wgtBase->AddChild(gui::Horiz::MakeFixed(separationHeight));
+    lightSettings.wgtBase->AddChild(
+            std::make_shared<gui::Label>("> Spotlight +X"));
+    lightSettings.wgtBase->AddChild(lightSettings.spotlights[1].MakeLightUI(
+                                                        theme, renderScene));
+    lightSettings.wgtBase->AddChild(gui::Horiz::MakeFixed(separationHeight));
+    lightSettings.wgtBase->AddChild(
+            std::make_shared<gui::Label>("> Spotlight -Y"));
+    lightSettings.wgtBase->AddChild(lightSettings.spotlights[2].MakeLightUI(
+                                                        theme, renderScene));
+    lightSettings.wgtBase->AddChild(gui::Horiz::MakeFixed(separationHeight));
+    lightSettings.wgtBase->AddChild(
+            std::make_shared<gui::Label>("> Spotlight +Y"));
+    lightSettings.wgtBase->AddChild(lightSettings.spotlights[3].MakeLightUI(
+                                                        theme, renderScene));
+    lightSettings.wgtBase->AddChild(gui::Horiz::MakeFixed(separationHeight));
+    lightSettings.wgtBase->AddChild(
+            std::make_shared<gui::Label>("> Spotlight -Z"));
+    lightSettings.wgtBase->AddChild(lightSettings.spotlights[4].MakeLightUI(
+                                                        theme, renderScene));
+    lightSettings.wgtBase->AddChild(gui::Horiz::MakeFixed(separationHeight));
+    lightSettings.wgtBase->AddChild(
+            std::make_shared<gui::Label>("> Spotlight +Z"));
+    lightSettings.wgtBase->AddChild(lightSettings.spotlights[5].MakeLightUI(
+                                                        theme, renderScene));
 
     AddChild(lightSettings.wgtBase);
 
     lightSettings.wgtBase->SetVisible(false);
 
     AddChild(impl_->drawTime);
+}
+
+std::shared_ptr<gui::VGrid> LightSettings::MakeLightUI(
+                                                const gui::Theme& theme,
+                                                Scene *scene) {
+    const int gridSpacing = std::ceil(0.25 * theme.fontSize);
+
+    bool isSun = false;
+    float intensity = DEFAULT_POINT_INTENSITY;
+    if (this->hLight != visualization::LightHandle::kBad) {
+        intensity = scene->GetLightIntensity(this->hLight);
+        isSun = true;
+    }
+    if (!isSun) {
+        this->wgtEnabled = std::make_shared<gui::Checkbox>("    ");
+        this->wgtEnabled->SetOnChecked([scene, this](bool checked){
+            if (checked) {
+                visualization::LightDescription lightDescription;
+                lightDescription.type = visualization::LightDescription::POINT;
+                lightDescription.intensity =
+                                    float(this->wgtIntensity->GetIntValue());
+                lightDescription.falloff = 10000.0f;
+                lightDescription.lightConeInner = 90.0f;
+                lightDescription.lightConeOuter = 90.0f;
+                lightDescription.direction = -this->position.normalized();
+                lightDescription.castShadows = false;
+                auto& color = this->wgtColor->GetValue();
+                lightDescription.color = {color.GetRed(), color.GetGreen(),
+                                          color.GetBlue()};
+                this->hLight = scene->AddLight(lightDescription);
+                scene->SetLightPosition(this->hLight, this->position);
+            } else {
+                scene->RemoveLight(this->hLight);
+            }
+            this->SetEnabled(checked);
+        });
+    }
+    this->wgtIntensity = MakeSlider(gui::Slider::INT, 0.0, 500000.0, intensity);
+    this->wgtIntensity->OnValueChanged =
+            [scene, this](double newValue) {
+                scene->SetLightIntensity(this->hLight, newValue);
+            };
+
+    this->wgtDirMinusX = std::make_shared<SmallButton>("-X");
+    this->wgtDirMinusX->SetOnClicked([scene, this]() {
+        scene->SetLightDirection(this->hLight, {1.0f, 0.0f, 0.0f});
+    });
+    this->wgtDirPlusX = std::make_shared<SmallButton>("+X");
+    this->wgtDirPlusX->SetOnClicked([scene, this]() {
+        scene->SetLightDirection(this->hLight, {-1.0f, 0.0f, 0.0f});
+    });
+    this->wgtDirMinusY = std::make_shared<SmallButton>("-Y");
+    this->wgtDirMinusY->SetOnClicked([scene, this]() {
+        scene->SetLightDirection(this->hLight, {0.0f, 1.0f, 0.0f});
+    });
+    this->wgtDirPlusY = std::make_shared<SmallButton>("+Y");
+    this->wgtDirPlusY->SetOnClicked([scene, this]() {
+        scene->SetLightDirection(this->hLight, {0.0f, -1.0f, 0.0f});
+    });
+    this->wgtDirMinusZ = std::make_shared<SmallButton>("-Z");
+    this->wgtDirMinusZ->SetOnClicked([scene, this]() {
+        scene->SetLightDirection(this->hLight, {0.0f, 0.0f, 1.0f});
+    });
+    this->wgtDirPlusZ = std::make_shared<SmallButton>("+Z");
+    this->wgtDirPlusZ->SetOnClicked([scene, this]() {
+        scene->SetLightDirection(this->hLight, {0.0f, 0.0f, -1.0f});
+    });
+    auto sunDirLayout = std::make_shared<gui::Horiz>(gridSpacing);
+    sunDirLayout->AddChild(this->wgtDirMinusX);
+    sunDirLayout->AddChild(gui::Horiz::MakeStretch());
+    sunDirLayout->AddChild(this->wgtDirPlusX);
+    sunDirLayout->AddChild(gui::Horiz::MakeStretch());
+    sunDirLayout->AddChild(this->wgtDirMinusY);
+    sunDirLayout->AddChild(gui::Horiz::MakeStretch());
+    sunDirLayout->AddChild(this->wgtDirPlusY);
+    sunDirLayout->AddChild(gui::Horiz::MakeStretch());
+    sunDirLayout->AddChild(this->wgtDirMinusZ);
+    sunDirLayout->AddChild(gui::Horiz::MakeStretch());
+    sunDirLayout->AddChild(this->wgtDirPlusZ);
+
+    this->wgtColor = std::make_shared<gui::ColorEdit>();
+    this->wgtColor->SetValue({1, 1, 1});
+    this->wgtColor->OnValueChanged =
+            [scene, this](const gui::Color &newColor) {
+                scene->SetLightColor(this->hLight,
+                        {newColor.GetRed(), newColor.GetGreen(),
+                         newColor.GetBlue()});
+            };
+
+    auto sunLayout = std::make_shared<gui::VGrid>(2, gridSpacing);
+    if (!isSun) {
+        sunLayout->AddChild(std::make_shared<gui::Label>("Enabled"));
+        sunLayout->AddChild(this->wgtEnabled);
+    }
+    sunLayout->AddChild(std::make_shared<gui::Label>("Intensity"));
+    sunLayout->AddChild(this->wgtIntensity);
+    if (isSun) {
+        sunLayout->AddChild(std::make_shared<gui::Label>("Position"));
+        sunLayout->AddChild(sunDirLayout);
+    }
+    sunLayout->AddChild(std::make_shared<gui::Label>("Color"));
+    sunLayout->AddChild(this->wgtColor);
+
+    SetEnabled(isSun);
+
+    return sunLayout;
 }
 
 GuiVisualizer::~GuiVisualizer() {}
