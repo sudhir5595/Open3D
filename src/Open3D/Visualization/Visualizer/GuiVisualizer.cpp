@@ -321,7 +321,9 @@ static const std::vector<LightingProfile> gLightingProfiles = {
         {.name = "Brighter, up is +Z",
          .iblIntensity = 100000,
          .sunIntensity = 100000,
-         .sunDir = {0.577f, 0.577f, -0.577f}},
+         .sunDir = {0.577f, 0.577f, -0.577f},
+         .iblRotation = Scene::Transform(
+                Eigen::AngleAxisf(M_PI / 2.0, Eigen::Vector3f::UnitX()))},
         {.name = "Darker, up is +Y",
          .iblIntensity = 75000,
          .sunIntensity = 100000,
@@ -336,7 +338,9 @@ static const std::vector<LightingProfile> gLightingProfiles = {
         {.name = "Darker, up is +Z",
          .iblIntensity = 75000,
          .sunIntensity = 100000,
-         .sunDir = {0.577f, 0.577f, -0.577f}},
+         .sunDir = {0.577f, 0.577f, -0.577f},
+         .iblRotation = Scene::Transform(
+               Eigen::AngleAxisf(M_PI / 2.0, Eigen::Vector3f::UnitX()))},
         {.name = kPointCloudProfileName,
          .iblIntensity = 60000,
          .sunIntensity = 100000,
@@ -804,7 +808,9 @@ GuiVisualizer::GuiVisualizer(
         if (checked) {
             renderScene->SetIndirectLight(impl_->settings.hIbl);
         } else {
+            auto rot = renderScene->GetIndirectLightRotation();
             renderScene->SetIndirectLight(IndirectLightHandle());
+            renderScene->SetIndirectLightRotation(rot);
         }
     });
     checkboxes->AddChild(settings.wgtAmbientEnabled);
@@ -1184,10 +1190,12 @@ bool GuiVisualizer::SetIBL(const char *path) {
     auto newIBL = GetRenderer().AddIndirectLight(ResourceLoadRequest(path));
     if (newIBL) {
         auto *scene = impl_->scene->GetScene();
+        auto rot = scene->GetIndirectLightRotation();
         impl_->settings.hIbl = newIBL;
         auto intensity = scene->GetIndirectLightIntensity();
         scene->SetIndirectLight(newIBL);
         scene->SetIndirectLightIntensity(intensity);
+        scene->SetIndirectLightRotation(rot);
         return true;
     }
     return false;
