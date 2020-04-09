@@ -1305,6 +1305,63 @@ bool TriangleMesh::IsVertexManifold() const {
     return GetNonManifoldVertices().empty();
 }
 
+
+// Writing the IdenticallyColoredConnectedComponents() function
+
+void bfs(int source, std::vector<std::unordered_set<int>> &graph, std::vector<Eigen::Matrix<double, 3, 1> >& colors1, std::vector<bool>& visited, std::vector<std::vector<int>>& connected_components){
+    std::vector<int> currentResult;
+    std::queue<int> Q;
+    Q.push(source);
+    visited[source] = true;
+    currentResult.push_back(source);
+    while(!Q.empty()){
+        int node = Q.front();
+        Q.pop();
+        for(auto it= graph[node].begin(); it != graph[node].end(); it++){
+            if(!visited[*it] and colors1[node]==colors1[*it]){
+                visited[*it] = true;
+                Q.push(*it);
+                currentResult.push_back(*it);
+            }
+        }
+    }
+    sort(currentResult.begin(), currentResult.end());
+    connected_components.push_back(currentResult);
+}
+
+
+std::vector < std::vector <int> > TriangleMesh::IdenticallyColoredConnectedComponents() const{
+    std::vector<Eigen::Matrix<double, 3, 1> > vertices1;
+    std::vector<Eigen::Matrix<int, 3, 1> > triangle1;
+    std::vector<Eigen::Matrix<double, 3, 1> > colors1;
+    // std::vector<int> colors1;
+    vertices1 = vertices_;
+    triangle1 = triangles_;
+    colors1 = vertex_colors_;
+    // colors1 = mesh_ptr.vertex_colors;
+    std::vector <bool> visited(vertices_.size(), false);
+    std::vector < std::vector <int> > connected_components; // Result array
+    std:: vector<unordered_set<int>> graph(vertices1.size());
+    for(int i=0; i<triangle1.size(); i++){
+        graph[triangle1[i][0]].insert(triangle1[i][1]);
+        graph[triangle1[i][0]].insert(triangle1[i][2]);
+        graph[triangle1[i][1]].insert(triangle1[i][0]);
+        graph[triangle1[i][1]].insert(triangle1[i][2]);
+        graph[triangle1[i][2]].insert(triangle1[i][0]);
+        graph[triangle1[i][2]].insert(triangle1[i][1]);
+    }
+    for(int i = 0; i<vertices_.size(); i++){
+        if(visited[i] == false){
+            //Call BFS
+            bfs(i, graph, colors1, visited, connected_components);
+    // std::cout << mesh_ptr->vertices_.size();
+        }
+    }
+    return connected_components;
+}
+
+// Function ends here
+    
 std::vector<Eigen::Vector2i> TriangleMesh::GetSelfIntersectingTriangles()
         const {
     std::vector<Eigen::Vector2i> self_intersecting_triangles;
