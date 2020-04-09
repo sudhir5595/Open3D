@@ -250,6 +250,12 @@ public:
     /// (Two or more faces connected only by a vertex and not by an edge.)
     bool IsVertexManifold() const;
 
+    
+    /// Function that returns colored connected components
+
+    std::vector < std::vector <int> > TriangleMesh::IdenticallyColoredConnectedComponents() const;
+
+    
     /// Function that returns a list of triangles that are intersecting the
     /// mesh.
     std::vector<Eigen::Vector2i> GetSelfIntersectingTriangles() const;
