@@ -209,6 +209,9 @@ void pybind_trianglemesh(py::module &m) {
                  &geometry::TriangleMesh::GetSelfIntersectingTriangles,
                  "Returns a list of indices to triangles that intersect the "
                  "mesh.")
+            .def("identically_colored_connected_components",
+                 &geometry::TriangleMesh::IdenticallyColoredConnectedComponents,
+                 "Returns a list of vertices of identically-colored connected components.")
             .def("is_intersecting", &geometry::TriangleMesh::IsIntersecting,
                  "Tests if the triangle mesh is intersecting the other "
                  "triangle mesh.")
