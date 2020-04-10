@@ -416,6 +416,46 @@ TEST(TriangleMesh, ComputeTriangleNormals) {
     ExpectEQ(ref, tm.triangle_normals_);
 }
 
+
+TEST(TriangleMesh, IdenticallyColoredConnectedComponents){
+
+    vector<Vector3d> ref_vertices = {{10, 10, 0},
+                                     {20, 10, 0},
+                                     {0, 0, 0},
+                                     {10, 0, 0},
+                                     {20, 0, 0},
+                                     {10, -10, 0},
+                                     {20, -10, 0}};
+
+    vector<Vector3d> ref_vertex_colors = {{1, 0, 0},
+                                          {0, 1, 0},
+                                          {0, 0, 1},
+                                          {1, 0, 0},
+                                          {0, 1, 0},
+                                          {1, 0, 0},
+                                          {1, 0, 0}};
+
+    vector<Vector3i> ref_triangles = {
+            {0, 2, 3},  {0, 1, 3}, {1, 3, 4}, {2, 3, 5}, {3, 5, 6},
+            {3, 4, 6}};
+
+    std::vector < std::vector <int> > gt_connected_components{ { 0, 3, 5, 6 }, 
+                               { 1, 4 }, 
+                               { 2 } };
+
+    geometry::TriangleMesh tm;
+    tm.vertices_ =  ref_vertices;
+    tm.triangles_ =  ref_triangles;
+    tm.ertex_colors_ = ref_vertex_colors;                         
+    std::vector < std::vector <int> > connected_components; // Result array 
+    connected_components = tm.IdenticallyColoredConnectedComponents();
+
+    EXPECT_EQ(gt_connected_components, connected_components);                          
+}
+
+
+
+
 TEST(TriangleMesh, ComputeVertexNormals) {
     vector<Vector3d> ref = {
             {0.635868, 0.698804, 0.327636},    {0.327685, 0.717012, 0.615237},
