@@ -28,8 +28,6 @@ if (io::ReadTriangleMesh(argv[1], *mesh)) {
     connected_components = mesh->IdenticallyColoredConnectedComponents();
     
     //  "print the result"
-    
-    sort(connected_components.begin(),connected_components.end());
     for(int i = 0; i<int(connected_components.size()); i++){
         for(int j = 0; j<int(connected_components[i].size()); j++){
             std::cout << connected_components[i][j] << " ";
