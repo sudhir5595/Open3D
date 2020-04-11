@@ -253,7 +253,7 @@ public:
     
     /// Function that returns colored connected components
 
-    std::vector < std::vector <int> > TriangleMesh::IdenticallyColoredConnectedComponents() const;
+    std::vector < std::vector <int> > IdenticallyColoredConnectedComponents() const;
 
     
     /// Function that returns a list of triangles that are intersecting the
