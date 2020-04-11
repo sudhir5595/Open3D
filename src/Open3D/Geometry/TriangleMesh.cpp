@@ -34,6 +34,7 @@
 #include <Eigen/Dense>
 #include <numeric>
 #include <queue>
+#include <unordered_set> 
 #include <random>
 #include <tuple>
 
@@ -1341,8 +1342,8 @@ std::vector < std::vector <int> > TriangleMesh::IdenticallyColoredConnectedCompo
     // colors1 = mesh_ptr.vertex_colors;
     std::vector <bool> visited(vertices_.size(), false);
     std::vector < std::vector <int> > connected_components; // Result array
-    std:: vector<unordered_set<int>> graph(vertices1.size());
-    for(int i=0; i<triangle1.size(); i++){
+    std:: vector<std::unordered_set<int>> graph(vertices1.size());
+    for(int i=0; i<int(triangle1.size()); i++){
         graph[triangle1[i][0]].insert(triangle1[i][1]);
         graph[triangle1[i][0]].insert(triangle1[i][2]);
         graph[triangle1[i][1]].insert(triangle1[i][0]);
@@ -1350,7 +1351,7 @@ std::vector < std::vector <int> > TriangleMesh::IdenticallyColoredConnectedCompo
         graph[triangle1[i][2]].insert(triangle1[i][0]);
         graph[triangle1[i][2]].insert(triangle1[i][1]);
     }
-    for(int i = 0; i<vertices_.size(); i++){
+    for(int i = 0; i<int(vertices_.size()); i++){
         if(visited[i] == false){
             //Call BFS
             bfs(i, graph, colors1, visited, connected_components);
