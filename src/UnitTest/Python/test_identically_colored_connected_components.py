@@ -22,15 +22,22 @@ mesh = o3d.geometry.TriangleMesh()
 mesh.vertices = o3d.utility.Vector3dVector(ref_vertices)
 mesh.triangles = o3d.utility.Vector3iVector(ref_triangles)
 mesh.vertex_colors = o3d.utility.Vector3dVector(ref_vertex_colors)
+#Output Result to be expected
+#gt_connected_components = [[0, 3, 5, 6], [1,4], [2]]
 
 #Output Result to be expected
-gt_connected_components = [[0, 3, 5, 6], [1,4], [2]]
+ref1 = np.array([0, 3, 5, 6], dtype = np.int32)
+ref2 = np.array([1, 4], dtype = np.int32)
+ref3 = np.array([2], dtype = np.int32)
+temp1 = o3d.utility.IntVector(ref1)
+temp2 = o3d.utility.IntVector(ref2)
+temp3 = o3d.utility.IntVector(ref3)
+temp =  []
+temp.append(temp1)
+temp.append(temp2)
+temp.append(temp3)
+
 
 def test_identically_colored_connected_components():
     connected_components = mesh.identically_colored_connected_components()
-    np.testing.assert_equal(connected_components, gt_connected_components)
-    
-    
- 
-    
-    
+    np.testing.assert_equal(connected_components, temp)
